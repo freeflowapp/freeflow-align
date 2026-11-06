@@ -1,7 +1,5 @@
 """Cog entry point: audio + known text in, word timings out (JSON string)."""
 
-from __future__ import annotations
-
 import json
 
 from cog import BasePredictor, Input, Path
