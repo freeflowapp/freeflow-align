@@ -76,4 +76,5 @@ version to `r8.im/$REPLICATE_MODEL` on every change to the model code on
 `main` (or by hand from the Actions tab). It needs:
 
 - repository variable `REPLICATE_MODEL`, for example `owner/align`
-- repository secret `REPLICATE_CLI_AUTH_TOKEN`, a Replicate API token
+- repository secret `REPLICATE_CLI_AUTH_TOKEN`, the Cog CLI token from
+  https://replicate.com/auth/token (an ordinary API token is refused by `cog login`)
