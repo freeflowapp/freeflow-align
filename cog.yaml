@@ -1,0 +1,11 @@
+# https://cog.run/yaml
+build:
+  gpu: true
+  python_version: "3.12"
+  system_packages:
+    - ffmpeg
+  python_requirements: requirements.txt
+  run:
+    # Bake the weights into the image so a cold start does not download them.
+    - python -c "from nemo.collections.asr.models import ASRModel; ASRModel.from_pretrained('nvidia/parakeet-ctc-0.6b', map_location='cpu')"
+predict: "predict.py:Predictor"

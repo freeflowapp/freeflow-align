@@ -1,0 +1,50 @@
+name: Push to Replicate
+
+# Builds the Cog image on a GitHub-hosted runner and pushes a new version of
+# the model named by the REPLICATE_MODEL repository variable (owner/name).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "align/**"
+      - "predict.py"
+      - "cog.yaml"
+      - "requirements.txt"
+      - ".github/workflows/push.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-to-replicate
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install numpy pytest
+      - run: python -m pytest -q tests
+
+  push:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          docker-images: false
+      - uses: actions/checkout@v4
+      - name: Set up Cog
+        uses: replicate/setup-cog@v2
+        with:
+          token: ${{ secrets.REPLICATE_CLI_AUTH_TOKEN }}
+          cog-version: v0.16.12
+      - name: Push
+        run: cog push "r8.im/${{ vars.REPLICATE_MODEL }}"
