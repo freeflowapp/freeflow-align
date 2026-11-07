@@ -3,3 +3,4 @@ __pycache__/
 .venv*/
 .cog/
 .pytest_cache/
+weights/

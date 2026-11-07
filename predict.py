@@ -13,6 +13,14 @@ class Predictor(BasePredictor):
         self.device = align._default_device()
         self.loaded: dict[str, backends.Backend] = {}
         self._backend(backends.DEFAULT)
+        self.separator = None  # loaded on the first request that asks for it
+
+    def _separator(self):
+        if self.separator is None:
+            from align.separate import Separator
+
+            self.separator = Separator(self.device)
+        return self.separator
 
     def _backend(self, name: str) -> backends.Backend:
         if name not in self.loaded:
@@ -36,9 +44,15 @@ class Predictor(BasePredictor):
             "over the full audio; both: segments timings plus whole-pass timings per word",
         ),
         padding: float = Input(default=1.5, ge=0, le=30, description="Seconds added around each window hint"),
+        separate: bool = Input(
+            default=False,
+            description="Also separate the vocal (Mel-Band RoFormer) and run the same passes on it; each word then "
+            "carries its stem timings under `stem`, and its own timings stay the mix's",
+        ),
     ) -> str:
         result = align.align_file(
             str(audio), transcript, aligner=aligner, mode=mode, padding=padding,
-            backend=self._backend(aligner),
+            backend=self._backend(aligner), separate=separate,
+            separator=self._separator() if separate else None,
         )
         return json.dumps(result)
