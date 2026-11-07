@@ -8,4 +8,7 @@ build:
   run:
     # Bake the weights into the image so a cold start does not download them.
     - python -c "from nemo.collections.asr.models import ASRModel; ASRModel.from_pretrained('nvidia/parakeet-ctc-0.6b', map_location='cpu')"
+    # The vocal separator's checkpoint (align/separate.py), pinned to a Hugging Face commit and its SHA-256.
+    - mkdir -p /weights && python -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/KimberleyJSN/melbandroformer/resolve/ac9b0614ab3cd7f77219e18ba494dfd93956c348/MelBandRoformer.ckpt', '/weights/MelBandRoformer.ckpt')"
+    - echo "87201f4d31afb5bc79993230fc49446918425574db48c01c405e44f365c7559e  /weights/MelBandRoformer.ckpt" | sha256sum -c -
 predict: "predict.py:Predictor"

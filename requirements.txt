@@ -1,1 +1,6 @@
 nemo_toolkit[asr]==3.0.0
+# Vocal separation (align/separate.py): the BS-RoFormer release whose layers match the pinned checkpoint.
+BS-RoFormer==0.3.10
+beartype==0.23.1
+einops==0.8.2
+rotary-embedding-torch==0.9.1
