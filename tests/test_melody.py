@@ -1,7 +1,9 @@
 import os
+import shutil
 import sys
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "melody"))
 import pitch  # noqa: E402
@@ -63,6 +65,7 @@ def test_keep_lead_reports_a_failed_upload_instead_of_failing(monkeypatch, tmp_p
     assert out == {"uploaded": False, "error": "upload refused (403)"}
 
 
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 def test_lead_flac_is_lossless_mono_22k_and_the_same_length(tmp_path):
     import soundfile as sf
 

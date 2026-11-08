@@ -16,5 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # ffmpeg: the tests that decode or encode audio (they skip without it, so locally it stays optional).
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - run: pip install numpy pytest soundfile
       - run: python -m pytest -q tests
