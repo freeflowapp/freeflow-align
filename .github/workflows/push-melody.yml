@@ -1,0 +1,37 @@
+name: Push melody model to Replicate
+
+# Builds melody/ (its own cog.yaml) and pushes a new version of the private model freeflowdev/melody-pitch.
+# The align model's workflow (push.yml) only runs for its own paths, so changes here do not rebuild it.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "melody/**"
+      - ".github/workflows/push-melody.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-melody-to-replicate
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          docker-images: false
+      - uses: actions/checkout@v4
+      - name: Set up Cog
+        uses: replicate/setup-cog@v2
+        with:
+          token: ${{ secrets.REPLICATE_CLI_AUTH_TOKEN }}
+          cog-version: v0.16.12
+      - name: Push
+        working-directory: melody
+        run: cog push r8.im/freeflowdev/melody-pitch
