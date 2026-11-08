@@ -1,0 +1,13 @@
+# https://cog.run/yaml — the melody model (freeflowdev/melody-pitch). Separate from the align model in the repo root.
+build:
+  gpu: true
+  python_version: "3.12"
+  system_packages:
+    - ffmpeg
+  python_requirements: requirements.txt
+  run:
+    - python -c "import torch; assert torch.__version__.split('+')[0] == '2.15.0', torch.__version__"
+    # The karaoke checkpoint, baked into the image and checked against its SHA-256 (pitch.py checks it again on load).
+    - mkdir -p /weights && python -c "import urllib.request; urllib.request.urlretrieve('https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt', '/weights/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt')"
+    - echo "1de20d459332fe8869aeb01327a31df0032262706e1365114e852dc271779813  /weights/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt" | sha256sum -c -
+predict: "predict.py:Predictor"
