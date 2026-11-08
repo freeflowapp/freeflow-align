@@ -10,5 +10,12 @@ class Predictor(BasePredictor):
         self.separator = pitch.Separator()
         print("device", self.separator.device, flush=True)
 
-    def predict(self, audio: Path = Input(description="The full mix (any format ffmpeg reads)")) -> str:
-        return pitch.run(self.separator, str(audio))
+    def predict(
+        self,
+        audio: Path = Input(description="The full mix (any format ffmpeg reads)"),
+        lead_upload_url: str = Input(
+            default="",
+            description="Optional https URL to PUT the separated lead vocal to, as FLAC (a signed storage upload URL)",
+        ),
+    ) -> str:
+        return pitch.run(self.separator, str(audio), lead_upload_url)

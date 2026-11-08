@@ -28,6 +28,7 @@ CHUNK = 352800  # audio.chunk_size in config_mel_band_roformer_karaoke.yaml (8 s
 SR = 16000
 HOP = 160  # 10 ms frames
 UNVOICED = -32768
+LEAD_SR = 22050  # the listening copy of the lead vocal (`lead_flac`)
 
 # The `model:` section of config_mel_band_roformer_karaoke.yaml (TRvlvr/application_data), verbatim.
 CONFIG = dict(
@@ -113,13 +114,42 @@ def lead_vocal_16k(separator, audio_path, workdir):
     corr = float(np.corrcoef(v.mean(0), wav.mean(1))[0, 1])
     if corr > 0.95:
         raise RuntimeError(f"the lead stem is the mix (corr {corr:.2f}); separation did not work")
-    y = resample_poly(v.mean(0), 160, 441).astype("float32")
+    mono = v.mean(0)
+    y = resample_poly(mono, 160, 441).astype("float32")
     lead = os.path.join(workdir, "lead16.wav")
     sf.write(lead, y, SR)
     import librosa
 
     y16, _ = librosa.load(lead, sr=SR, mono=True)
-    return y16, corr
+    return y16, corr, mono
+
+
+def lead_flac(mono44, workdir):
+    """The lead vocal (44.1 kHz mono float) as a FLAC file to listen to: 22.05 kHz mono 16-bit, lossless, so it lines
+    up with the recording sample for sample (no encoder delay, unlike MP3 or AAC). About 1.4 MB a minute."""
+    import soundfile as sf
+
+    wav = os.path.join(workdir, "lead44.wav")
+    sf.write(wav, np.clip(mono44, -1.0, 1.0).astype("float32"), 44100, subtype="FLOAT")
+    out = os.path.join(workdir, "lead.flac")
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-i", wav, "-ar", str(LEAD_SR), "-ac", "1",
+                    "-sample_fmt", "s16", "-c:a", "flac", out], check=True)
+    return out
+
+
+def upload_lead(path, url, timeout=120):
+    """PUT the file to a signed upload URL (Supabase Storage's `createSignedUploadUrl`). Returns the bytes sent."""
+    import urllib.request
+
+    if not url.startswith("https://"):
+        raise ValueError("lead_upload_url must be https")
+    data = open(path, "rb").read()
+    req = urllib.request.Request(url, data=data, method="PUT",
+                                 headers={"Content-Type": "audio/flac", "x-upsert": "true"})
+    with urllib.request.urlopen(req, timeout=timeout) as res:
+        if res.status >= 300:
+            raise RuntimeError(f"upload refused ({res.status})")
+    return len(data)
 
 
 def pitch_track(y):
@@ -159,15 +189,33 @@ def decode(result):
     return semi, vprob
 
 
-def run(separator, audio_path):
-    """Full mix -> JSON string (see README.md for the format). Logs timings to stdout."""
+def keep_lead(mono44, url, workdir):
+    """The `lead` entry of the result: the lead vocal uploaded to `url`, or why it wasn't. Never fails the run: the
+    pitch track is the model's job, the listening copy a convenience."""
+    try:
+        sent = upload_lead(lead_flac(mono44, workdir), url)
+        return {"uploaded": True, "format": "flac", "sample_rate": LEAD_SR, "bytes": sent}
+    except Exception as e:  # noqa: BLE001 - reported in the result instead
+        return {"uploaded": False, "error": str(e)[:300]}
+
+
+def run(separator, audio_path, lead_upload_url=""):
+    """Full mix -> JSON string (see README.md for the format). Logs timings to stdout. With `lead_upload_url`, the
+    separated lead vocal is also uploaded there as FLAC and the result says so under `lead`."""
+    lead = None
     with tempfile.TemporaryDirectory() as tmp:
         t0 = time.time()
-        y, corr = lead_vocal_16k(separator, audio_path, tmp)
+        y, corr, mono44 = lead_vocal_16k(separator, audio_path, tmp)
         t1 = time.time()
         semi, vprob = pitch_track(y)
         t2 = time.time()
+        if lead_upload_url:
+            lead = keep_lead(mono44, lead_upload_url, tmp)
+            print(f"lead vocal {lead} in {time.time() - t2:.1f} s", flush=True)
     duration = len(y) / SR
     print(f"audio {duration:.1f} s; separation {t1 - t0:.1f} s (corr with mix {corr:.2f}); pyin {t2 - t1:.1f} s; "
           f"voiced {np.mean(~np.isnan(semi)) * 100:.0f}% of {len(semi)} frames", flush=True)
-    return json.dumps(encode(semi, vprob, duration), separators=(",", ":"))
+    out = encode(semi, vprob, duration)
+    if lead is not None:
+        out["lead"] = lead
+    return json.dumps(out, separators=(",", ":"))

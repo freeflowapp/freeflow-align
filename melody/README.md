@@ -29,6 +29,13 @@ The same steps as freeflow-ai-eval's `scripts/melody/separate_karaoke.py` follow
 4. `librosa.pyin(fmin=E2, fmax=C6, sr=16000, frame_length=1024, hop_length=160)`; semitones = `hz_to_midi(f0) - 12`
    (C0 = 0).
 
+## Inputs
+
+- `audio`: the full mix.
+- `lead_upload_url` (optional): an https URL the separated lead vocal is PUT to, as 22.05 kHz mono 16-bit FLAC
+  (lossless, so it lines up with the recording sample for sample). The app passes a Supabase Storage signed upload URL
+  so the Melody step can play the lead vocal on its own. About 1.4 MB a minute of audio.
+
 ## Output
 
 A JSON string:
@@ -44,6 +51,8 @@ A JSON string:
 | `duration` | seconds of audio |
 | `semis` | base64 of N little-endian int16: `round(semitones * 100)`, `-32768` where unvoiced |
 | `voicing` | base64 of N uint8: `round(voiced_probability * 255)` |
+
+| `lead` | only when `lead_upload_url` was given: `{"uploaded": true, "format": "flac", "sample_rate": 22050, "bytes": n}`, or `{"uploaded": false, "error": "…"}` (the pitch track is returned either way) |
 
 Frame `i` is at `i * 0.01` s from the start of the file (librosa's centred frames). `pitch.decode()` reverses it.
 
