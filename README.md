@@ -16,6 +16,7 @@ model and a Viterbi search that must follow your text exactly.
 | `aligner` | Which acoustic model to use (see below). |
 | `mode` | `segments`: align each segment inside its window (unhinted segments use the whole-file pass). `whole`: one pass over the full file, hints ignored. `both`: `segments` timings, plus the whole-file timings on every word under `whole`, so you can see where the two passes disagree. |
 | `padding` | Seconds added on each side of a window hint (default 1.5). Each window runs the model again on that stretch of audio alone, so the two passes in `both` are independent. |
+| `letters` | Default `false`. When `true`, every word also gains `letters`: when each of its letters starts (see below). |
 | `separate` | Default `false`. When `true`, the vocal is first separated from the audio (see below) and the same passes run on it too: each word gains `stem` (its timings on the vocal stem, with `whole` in mode `both`), while its own timings stay the mix's, exactly as with `separate` off. The output gains `separator`. |
 
 ## Output
@@ -44,6 +45,27 @@ they occupy (0 to 1). A word the model cannot represent (for example digits
 only) comes back with `"skipped": true` and null times. A segment whose window
 is too short for its text comes back with `"status": "failed"`.
 
+## Letters (`letters: true`)
+
+The word aligner places whole words on 80 ms frames. With `letters`, each placed word is listened to again by a
+character model on 20 ms frames, [facebook/wav2vec2-large-960h-lv60-self](https://huggingface.co/facebook/wav2vec2-large-960h-lv60-self)
+(Apache-2.0, pinned to commit `9fc4550a`), on the vocal stem when `separate` is on and on the mix otherwise. Each
+word is aligned alone inside its own placed time (the stem's pass where it placed the word, else the mix's) plus
+0.15 s either side, and gains `letters`: the start time of each of its letters, where the letters are the word's
+a to z and internal apostrophes, lower case (`"Pow-er!"` has five). A word with nothing placed or nothing to hear
+gets `null`. Cut the word into syllables your own way and start each syllable at its first letter's time.
+
+```json
+{"text": "power", "start": 12.42, "end": 12.9, "score": 0.91, "letters": [12.42, 12.46, 12.66, 12.7, 12.76]}
+"letters": {"model": "facebook/wav2vec2-large-960h-lv60-self@9fc4550a", "weights_license": "Apache-2.0 (Meta AI)",
+            "frame_seconds": 0.02, "source": "stem", "padding": 0.15}
+```
+
+Why: on 13 songs a person timed syllable by syllable (Freeflow's test, 2026-11-25, scored on songs not used for
+tuning), syllables inside the words parakeet placed were within 50 ms of the tap 33% of the time when spread
+evenly and 60% from their first letter's time. It did not help word starts, and it cannot tell how many syllables
+a word is sung on.
+
 ## Vocal separation (`separate: true`)
 
 The vocal is separated with a Mel-Band RoFormer: the checkpoint `MelBandRoformer.ckpt` from
@@ -65,6 +87,7 @@ model card is empty and the training data is not stated, which is what `separato
 | Name | Weights | Licence |
 |---|---|---|
 | `parakeet-ctc-0.6b` (default) | [nvidia/parakeet-ctc-0.6b](https://huggingface.co/nvidia/parakeet-ctc-0.6b) through [NeMo](https://github.com/NVIDIA/NeMo) | CC-BY-4.0 |
+| letters pass only (not an `aligner` choice) | [facebook/wav2vec2-large-960h-lv60-self](https://huggingface.co/facebook/wav2vec2-large-960h-lv60-self) through [transformers](https://github.com/huggingface/transformers) | Apache-2.0 |
 
 The default model is NVIDIA's parakeet-ctc-0.6b, used under the
 [CC-BY-4.0 licence](https://creativecommons.org/licenses/by/4.0/). Credit:

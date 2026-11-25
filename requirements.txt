@@ -4,3 +4,6 @@ BS-RoFormer==0.3.10
 beartype==0.23.1
 einops==0.8.2
 rotary-embedding-torch==0.9.1
+# The letters pass (align/backends/wav2vec2.py). NeMo already depends on transformers; named here so the import is
+# not left to that, and unpinned so it stays the version NeMo resolves.
+transformers

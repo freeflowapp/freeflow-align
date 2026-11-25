@@ -18,11 +18,13 @@ p.add_argument("--padding", type=float, default=1.5)
 p.add_argument("--device", default=None)
 p.add_argument("--out", default="-")
 p.add_argument("--separate", action="store_true")
+p.add_argument("--letters", action="store_true")
 a = p.parse_args()
 
 t0 = time.time()
 with open(a.transcript, encoding="utf-8") as f:
-    result = align.align_file(a.audio, f.read(), a.aligner, a.mode, a.padding, a.device, separate=a.separate)
+    result = align.align_file(a.audio, f.read(), a.aligner, a.mode, a.padding, a.device, separate=a.separate,
+                               letters=a.letters)
 result["seconds_taken"] = round(time.time() - t0, 1)
 text = json.dumps(result, indent=1)
 if a.out == "-":

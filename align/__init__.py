@@ -20,12 +20,18 @@ def align_file(
     backend: backends.Backend | None = None,
     separate: bool = False,
     separator=None,
+    letters: bool = False,
+    letter_backend: backends.Backend | None = None,
 ) -> dict:
     """Align ``transcript`` (JSON or plain text) to the audio at ``path``.
 
     With ``separate``, the vocal is also separated from the audio (``align.separate``) and the same passes run on it:
     each word then carries ``stem`` (its timings on the vocal stem, with ``whole`` in mode ``both``), while its own
     timings stay those of the mix, exactly as without ``separate``.
+
+    With ``letters``, every word also gains ``letters``: when each of its letters starts, heard inside the word's
+    placed time by a fine character model on the vocal stem (on the mix without ``separate``), or None
+    (``align.letters``). The output gains ``letters`` describing the model. Nothing else changes.
     """
     segments = parse_transcript(transcript)
     if backend is None:
@@ -43,6 +49,7 @@ def align_file(
         "frame_seconds": backend.frame_seconds,
         "segments": results,
     }
+    stem = None
     if separate:
         from . import separate as sep
 
@@ -60,6 +67,25 @@ def align_file(
                 seg["stem_status"] = stem_seg["status"]
                 seg["stem_error"] = stem_seg.get("error")
         out["separator"] = {"model": sep.MODEL, "checkpoint_sha256": sep.CHECKPOINT_SHA256, "weights_license": sep.WEIGHTS_LICENSE}
+    if letters:
+        from . import letters as fine
+
+        if letter_backend is None:
+            from .backends.wav2vec2 import Wav2Vec2CTC
+
+            letter_backend = Wav2Vec2CTC()
+            letter_backend.load(device or _default_device())
+        heard = stem if stem is not None else wave
+        if letter_backend.sample_rate != backend.sample_rate:
+            raise ValueError("the letters model must share the aligner's sample rate")
+        fine.add_letters(results, letter_backend.emissions(heard), letter_backend, letter_backend.time_offset)
+        out["letters"] = {
+            "model": letter_backend.model_id,
+            "weights_license": letter_backend.weights_license,
+            "frame_seconds": letter_backend.frame_seconds,
+            "source": "stem" if stem is not None else "mix",
+            "padding": fine.LETTER_PADDING,
+        }
     return out
 
 
