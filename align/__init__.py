@@ -20,13 +20,20 @@ def align_file(
     backend: backends.Backend | None = None,
     separate: bool = False,
     separator=None,
+    letters: bool = False,
+    letter_model=None,
 ) -> dict:
     """Align ``transcript`` (JSON or plain text) to the audio at ``path``.
 
     With ``separate``, the vocal is also separated from the audio (``align.separate``) and the same passes run on it:
     each word then carries ``stem`` (its timings on the vocal stem, with ``whole`` in mode ``both``), while its own
     timings stay those of the mix, exactly as without ``separate``.
+
+    With ``letters`` (needs ``separate``), each word the stem pass placed also gets ``stem.letters``: when each letter
+    of the word starts on the vocal stem (``align.letters``), seconds, or null where it could not be spelled.
     """
+    if letters and not separate:
+        raise ValueError("letters needs separate: letter times are read off the separated vocal")
     segments = parse_transcript(transcript)
     if backend is None:
         backend = backends.get(aligner)
@@ -51,9 +58,20 @@ def align_file(
         stem = separator.vocals(path, backend.sample_rate)
         stem_results = align_transcript(stem, backend, segments, mode, padding)
         _shift(stem_results, backend.time_offset)
+        if letters:
+            from . import letters as let
+
+            if letter_model is None:
+                letter_model = let.LetterModel()
+                letter_model.load(device or _default_device())
+            let.add_letters(stem, segments, stem_results, letter_model, padding)
+            out["letters"] = {"model": f"{let.MODEL}@{let.REVISION[:8]}", "weights_license": let.WEIGHTS_LICENSE,
+                              "frame_seconds": letter_model.frame_seconds, "time_offset": let.TIME_OFFSET, "pad": let.PAD}
         for seg, stem_seg in zip(results, stem_results):
             for w, sw in zip(seg["words"], stem_seg["words"]):
                 w["stem"] = {k: sw[k] for k in ("start", "end", "score")}
+                if letters:
+                    w["stem"]["letters"] = sw.get("letters")
                 if "whole" in sw:
                     w["stem"]["whole"] = sw["whole"]
             if stem_seg["status"] != "ok":

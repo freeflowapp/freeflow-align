@@ -14,6 +14,7 @@ class Predictor(BasePredictor):
         self.loaded: dict[str, backends.Backend] = {}
         self._backend(backends.DEFAULT)
         self.separator = None  # loaded on the first request that asks for it
+        self.letter_model = None  # likewise
 
     def _separator(self):
         if self.separator is None:
@@ -21,6 +22,14 @@ class Predictor(BasePredictor):
 
             self.separator = Separator(self.device)
         return self.separator
+
+    def _letters(self):
+        if self.letter_model is None:
+            from align.letters import LetterModel
+
+            self.letter_model = LetterModel()
+            self.letter_model.load(self.device)
+        return self.letter_model
 
     def _backend(self, name: str) -> backends.Backend:
         if name not in self.loaded:
@@ -49,10 +58,16 @@ class Predictor(BasePredictor):
             description="Also separate the vocal (Mel-Band RoFormer) and run the same passes on it; each word then "
             "carries its stem timings under `stem`, and its own timings stay the mix's",
         ),
+        letters: bool = Input(
+            default=False,
+            description="With separate: also time each letter of every word the stem pass placed (wav2vec2, 20 ms), "
+            "as `stem.letters`, so a client can time syllables",
+        ),
     ) -> str:
         result = align.align_file(
             str(audio), transcript, aligner=aligner, mode=mode, padding=padding,
             backend=self._backend(aligner), separate=separate,
             separator=self._separator() if separate else None,
+            letters=letters, letter_model=self._letters() if letters else None,
         )
         return json.dumps(result)

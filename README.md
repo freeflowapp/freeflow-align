@@ -16,6 +16,7 @@ model and a Viterbi search that must follow your text exactly.
 | `aligner` | Which acoustic model to use (see below). |
 | `mode` | `segments`: align each segment inside its window (unhinted segments use the whole-file pass). `whole`: one pass over the full file, hints ignored. `both`: `segments` timings, plus the whole-file timings on every word under `whole`, so you can see where the two passes disagree. |
 | `padding` | Seconds added on each side of a window hint (default 1.5). Each window runs the model again on that stretch of audio alone, so the two passes in `both` are independent. |
+| `letters` | Default `false`. Needs `separate`. Each word the stem pass placed also gets `stem.letters`: when each letter of the word starts on the vocal stem (see below). The output gains `letters`. |
 | `separate` | Default `false`. When `true`, the vocal is first separated from the audio (see below) and the same passes run on it too: each word gains `stem` (its timings on the vocal stem, with `whole` in mode `both`), while its own timings stay the mix's, exactly as with `separate` off. The output gains `separator`. |
 
 ## Output
@@ -43,6 +44,26 @@ A JSON string:
 they occupy (0 to 1). A word the model cannot represent (for example digits
 only) comes back with `"skipped": true` and null times. A segment whose window
 is too short for its text comes back with `"status": "failed"`.
+
+## Letter times (`letters: true`)
+
+Inside each word the stem pass placed, a character CTC model with 20 ms frames,
+[facebook/wav2vec2-large-960h-lv60-self](https://huggingface.co/facebook/wav2vec2-large-960h-lv60-self) at revision
+`54074b1c` (Apache-2.0), is forced to spell the word within the word's own start and end ± 0.1 s, and each letter's
+first frame is reported, less 0.12 s (CTC fires late on a sung vowel). `stem.letters` holds one time per letter of the
+word lower-cased to a–z and inner apostrophes (the same normalisation as the word aligner), or `null` where the word
+could not be spelled. One model pass per segment window. A client cuts the word into syllables and times each at its
+first vowel's letter.
+
+Measured on 13 House of Bread songs against hand-timed syllables (580 after a word's first, freeflow-ai-eval
+`bench/`): within 50 ms of the hand time 33% → 58% on the songs held out from tuning (162 syllables closer, 46
+further), against spreading each word's syllables evenly. The 0.1 s window and the 0.12 s shift were tuned on the
+other songs.
+
+```json
+"letters": {"model": "facebook/wav2vec2-large-960h-lv60-self@54074b1c", "weights_license": "Apache-2.0 (Meta AI)",
+            "frame_seconds": 0.02, "time_offset": -0.12, "pad": 0.1}
+```
 
 ## Vocal separation (`separate: true`)
 
