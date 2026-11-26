@@ -49,20 +49,21 @@ is too short for its text comes back with `"status": "failed"`.
 
 Inside each word the stem pass placed, a character CTC model with 20 ms frames,
 [facebook/wav2vec2-large-960h-lv60-self](https://huggingface.co/facebook/wav2vec2-large-960h-lv60-self) at revision
-`54074b1c` (Apache-2.0), is forced to spell the word within the word's own start and end ± 0.1 s, and each letter's
-first frame is reported, less 0.12 s (CTC fires late on a sung vowel). `stem.letters` holds one time per letter of the
+`54074b1c` (Apache-2.0), is forced to spell the word between its start − 0.25 s and the later of its end and the next
+placed word's start + 0.25 s (a held syllable runs past where the word aligner hears the word end), and each letter's
+first frame is reported, less 0.09 s (CTC fires late on a sung vowel). `stem.letters` holds one time per letter of the
 word lower-cased to a–z and inner apostrophes (the same normalisation as the word aligner), or `null` where the word
 could not be spelled. One model pass per segment window. A client cuts the word into syllables and times each at its
 first vowel's letter.
 
 Measured on 13 House of Bread songs against hand-timed syllables (580 after a word's first, freeflow-ai-eval
-`bench/`): within 50 ms of the hand time 33% → 58% on the songs held out from tuning (162 syllables closer, 46
-further), against spreading each word's syllables evenly. The 0.1 s window and the 0.12 s shift were tuned on the
-other songs.
+`bench/`): within 50 ms of the hand time 33% → 61% on the songs held out from tuning (152 syllables closer, 36
+further), against spreading each word's syllables evenly; this code run end to end on three of those songs: 33% → 65%
+(70 closer, 15 further). The window and the shift were tuned on the other songs.
 
 ```json
 "letters": {"model": "facebook/wav2vec2-large-960h-lv60-self@54074b1c", "weights_license": "Apache-2.0 (Meta AI)",
-            "frame_seconds": 0.02, "time_offset": -0.12, "pad": 0.1}
+            "frame_seconds": 0.02, "time_offset": -0.09, "pad": 0.25}
 ```
 
 ## Vocal separation (`separate: true`)
