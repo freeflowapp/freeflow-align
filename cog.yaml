@@ -11,4 +11,6 @@ build:
     # The vocal separator's checkpoint (align/separate.py), pinned to a Hugging Face commit and its SHA-256.
     - mkdir -p /weights && python -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/KimberleyJSN/melbandroformer/resolve/ac9b0614ab3cd7f77219e18ba494dfd93956c348/MelBandRoformer.ckpt', '/weights/MelBandRoformer.ckpt')"
     - echo "87201f4d31afb5bc79993230fc49446918425574db48c01c405e44f365c7559e  /weights/MelBandRoformer.ckpt" | sha256sum -c -
+    # The letter model (align/letters.py), pinned to the revision it was measured at.
+    - python -c "from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor; r='54074b1c16f4de6a5ad59affb4caa8f2ea03a119'; Wav2Vec2Processor.from_pretrained('facebook/wav2vec2-large-960h-lv60-self', revision=r); Wav2Vec2ForCTC.from_pretrained('facebook/wav2vec2-large-960h-lv60-self', revision=r)"
 predict: "predict.py:Predictor"
