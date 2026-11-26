@@ -59,6 +59,15 @@ def test_letters_stay_inside_the_word_and_unplaced_words_get_none():
     assert second is None
 
 
+def test_a_held_word_may_run_on_to_the_next_words_start():
+    # "go": g at 1.0 s, but o held late, at 1.5 s, after where the word aligner heard it end (1.1 s); next word at 1.7 s
+    path = frames_for([(50, "g"), (75, "o"), (85, "l"), (88, "a")], 150)
+    segs = parse_transcript(json.dumps({"segments": [{"id": "s", "text": "go la", "start": 0.5, "end": 2.5}]}))
+    results = [{"words": [{"text": "go", "start": 0.98, "end": 1.1}, {"text": "la", "start": 1.7, "end": 1.8}]}]
+    add_letters(PathLetters.audio(path), segs, results, PathLetters(), padding=0.2)
+    assert results[0]["words"][0]["letters"][1] == pytest.approx(1.5 + let.TIME_OFFSET, abs=1e-6)
+
+
 def test_word_too_long_for_its_window_is_none():
     lp = emissions([0] * 10, vocab=5)
     assert word_letters(lp, 0.02, 0.0, [1, 2, 3, 4], 0.0, 0.04, 0) is None

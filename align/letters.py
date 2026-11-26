@@ -6,8 +6,9 @@ and each letter's first frame is reported. A client cuts a word into syllables a
 
 Measured 2026-11-25 on 13 House of Bread songs (580 hand-timed syllables after a word's first; freeflow-ai-eval
 `bench/`, run S2): syllables at their first vowel's time, kept only inside the heard word and in order, on the nearest
-sixteenth: 33% -> 58% within 50 ms of the hand time on the songs held out from tuning (162 closer, 46 further), 40% ->
-64% on all 13. The window (the word +- PAD) and the shift (TIME_OFFSET) were tuned on the other songs.
+sixteenth: 33% -> 61% within 50 ms of the hand time on the songs held out from tuning (152 closer, 36 further), 40% ->
+65% on all 13 (run S3N, from the alignments the app stored). The window and the shift (PAD, TIME_OFFSET) were tuned on
+the other songs.
 
 Weights: facebook/wav2vec2-large-960h-lv60-self, Apache-2.0.
 """
@@ -25,10 +26,10 @@ WEIGHTS_LICENSE = "Apache-2.0 (Meta AI)"
 SAMPLE_RATE = 16000
 CHUNK = 30 * SAMPLE_RATE  # run as separate 30 s pieces, as measured
 MIN_CHUNK = SAMPLE_RATE // 2
-#: seconds around the word's own start and end that its letters may use
-PAD = 0.1
+#: seconds before the word's start, and after the next word's start, that its letters may use
+PAD = 0.25
 #: added to every letter time: CTC fires late on a sung vowel (tuned; see the module note)
-TIME_OFFSET = -0.12
+TIME_OFFSET = -0.09
 
 
 class LetterModel:
@@ -91,8 +92,9 @@ def word_letters(lp: np.ndarray, fs: float, t0: float, ids: list[int], lo: float
 def add_letters(wave: np.ndarray, segments, results: list[dict], model, padding: float) -> None:
     """Give every word ``results`` placed (its own windowed times) a ``letters`` list, in place.
 
-    One model pass per segment window (the segment's hint +- ``padding``, or the whole file when unhinted); each word is
-    then spelled alone inside its own start/end +- PAD. A word that can't be spelled gets ``letters: null``.
+    One model pass per segment window (the segment's hint +- ``padding``, or the whole file when unhinted). Each word is
+    then spelled alone from its start - PAD to the later of its end and the next placed word's start, + PAD. A word
+    that can't be spelled gets ``letters: null``.
     """
     sr = model.sample_rate
     whole = None
@@ -111,8 +113,12 @@ def add_letters(wave: np.ndarray, segments, results: list[dict], model, padding:
             if whole is None:
                 whole = model.emissions(wave)
             (lp, fs), t0 = whole, 0.0
-        for text, w in zip(seg.words, res["words"]):
+        words = res["words"]
+        for j, (text, w) in enumerate(zip(seg.words, words)):
             if w.get("start") is None or w.get("end") is None:
                 w["letters"] = None
                 continue
-            w["letters"] = word_letters(lp, fs, t0, model.spell(text), w["start"] - PAD, w["end"] + PAD, model.blank)
+            # A held word's later syllables can run past where the aligner heard it end: up to the next word's start.
+            nxt = next((x["start"] for x in words[j + 1 :] if x.get("start") is not None), None)
+            until = max(w["end"], nxt) if nxt is not None else w["end"]
+            w["letters"] = word_letters(lp, fs, t0, model.spell(text), w["start"] - PAD, until + PAD, model.blank)
